@@ -60,15 +60,40 @@ else
     warn "Failed to install zsh-autosuggestions — continuing anyway."
 fi
 
+# ── Enable zsh-autosuggestions in .zshrc ─────────────────────────────────────
+ZSH_AUTOSUG_MARKER="# >>> zsh-autosuggestions <<<"
+if grep -q "$ZSH_AUTOSUG_MARKER" "$ZSHRC"; then
+    warn "zsh-autosuggestions already sourced in $ZSHRC — skipping."
+else
+    info "Enabling zsh-autosuggestions in $ZSHRC..."
+    cat >> "$ZSHRC" << 'EOF'
+
+# >>> zsh-autosuggestions <<<
+if [ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]; then
+    source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
+# <<< zsh-autosuggestions <<<
+EOF
+    success "zsh-autosuggestions sourced in $ZSHRC."
+fi
+
 # =============================================================================
 # 3. Create Directory Structure
 # =============================================================================
 info "Creating directory structure..."
 DIRS=(Tools Docs Notes Scripts Trash Temps)
+DIRS_CREATED=()
+DIRS_FAILED=()
 for dir in "${DIRS[@]}"; do
-    mkdir -p "$HOME/$dir"
+    if mkdir -p "$HOME/$dir" 2>/dev/null; then
+        DIRS_CREATED+=("$dir")
+    else
+        warn "Failed to create $HOME/$dir — continuing anyway."
+        DIRS_FAILED+=("$dir")
+    fi
 done
-success "Directories created: ${DIRS[*]}"
+[ ${#DIRS_CREATED[@]} -gt 0 ] && success "Directories created: ${DIRS_CREATED[*]}"
+[ ${#DIRS_FAILED[@]}  -gt 0 ] && warn    "Directories skipped: ${DIRS_FAILED[*]}"
 
 # =============================================================================
 # 4. Write Aliases to .zshrc
@@ -77,10 +102,10 @@ info "Writing aliases to $ZSHRC..."
 
 # Guard against duplicate entries on re-runs
 MARKER="# >>> kali-setup aliases <<<"
-if grep -q "$MARKER" "$ZSHRC"; then
+if grep -q "$MARKER" "$ZSHRC" 2>/dev/null; then
     warn "Aliases already present in $ZSHRC — skipping to avoid duplicates."
 else
-    cat >> "$ZSHRC" << 'EOF'
+    if cat >> "$ZSHRC" << 'EOF'
 
 # >>> kali-setup aliases <<<
 
@@ -124,7 +149,11 @@ alias nessus-stop="sudo /bin/systemctl stop nessusd.service"
 
 # <<< kali-setup aliases <<<
 EOF
-    success "Aliases written to $ZSHRC."
+    then
+        success "Aliases written to $ZSHRC."
+    else
+        warn "Failed to write aliases to $ZSHRC — continuing anyway."
+    fi
 fi
 
 # =============================================================================
@@ -148,8 +177,11 @@ else
 fi
 
 if [ ! -L "$WORDLISTS_LINK" ]; then
-    ln -s /usr/share/wordlists "$WORDLISTS_LINK"
-    success "Symlink created: ~/Wordlists → /usr/share/wordlists"
+    if ln -s /usr/share/wordlists "$WORDLISTS_LINK" 2>/dev/null; then
+        success "Symlink created: ~/Wordlists → /usr/share/wordlists"
+    else
+        warn "Failed to create ~/Wordlists symlink — continuing anyway."
+    fi
 else
     warn "~/Wordlists symlink already exists — skipping."
 fi
@@ -159,7 +191,11 @@ fi
 # =============================================================================
 info "Reloading $ZSHRC..."
 # shellcheck disable=SC1090
-source "$ZSHRC" 2>/dev/null || warn "Could not source $ZSHRC from bash — open a new zsh session to apply aliases."
+if source "$ZSHRC" 2>/dev/null; then
+    success "$ZSHRC reloaded successfully."
+else
+    warn "Could not source $ZSHRC from bash — open a new zsh session to apply aliases."
+fi
 
 # =============================================================================
 echo ""
