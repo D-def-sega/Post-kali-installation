@@ -3,7 +3,7 @@
 # Kali Linux Environment Setup Script
 # =============================================================================
 
-set -euo pipefail
+set -uo pipefail  # Removed -e so update failures don't abort the script
 
 # ── Colors for output ────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 info()    { echo -e "${CYAN}[*]${NC} $1"; }
 success() { echo -e "${GREEN}[+]${NC} $1"; }
 warn()    { echo -e "${YELLOW}[!]${NC} $1"; }
-error()   { echo -e "${RED}[-]${NC} $1"; exit 1; }
+error()   { echo -e "${RED}[-]${NC} $1"; }  # No longer exits — script continues
 
 # ── Check for zsh ────────────────────────────────────────────────────────────
 ZSHRC="$HOME/.zshrc"
@@ -28,15 +28,37 @@ fi
 # 1. System Update
 # =============================================================================
 info "Updating system packages..."
-sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
-success "System updated."
+
+# Run each step independently so a failure in one doesn't stop the rest
+if sudo apt update -y; then
+    success "Package lists updated."
+else
+    warn "apt update encountered issues — continuing anyway."
+fi
+
+if sudo apt upgrade -y; then
+    success "Packages upgraded."
+else
+    warn "apt upgrade encountered issues — continuing anyway."
+fi
+
+if sudo apt autoremove -y; then
+    success "Unused packages removed."
+else
+    warn "apt autoremove encountered issues — continuing anyway."
+fi
+
+success "System update phase complete."
 
 # =============================================================================
 # 2. Install Packages
 # =============================================================================
 info "Installing zsh-autosuggestions..."
-sudo apt install -y zsh-autosuggestions
-success "zsh-autosuggestions installed."
+if sudo apt install -y zsh-autosuggestions; then
+    success "zsh-autosuggestions installed."
+else
+    warn "Failed to install zsh-autosuggestions — continuing anyway."
+fi
 
 # =============================================================================
 # 3. Create Directory Structure
@@ -114,8 +136,11 @@ WORDLISTS_LINK="$HOME/Wordlists"
 
 if [ -f "$ROCKYOU_GZ" ]; then
     info "Decompressing rockyou.txt..."
-    sudo gunzip "$ROCKYOU_GZ"
-    success "rockyou.txt decompressed."
+    if sudo gunzip "$ROCKYOU_GZ"; then
+        success "rockyou.txt decompressed."
+    else
+        warn "Failed to decompress rockyou.txt — continuing anyway."
+    fi
 elif [ -f "$ROCKYOU_TXT" ]; then
     warn "rockyou.txt already decompressed — skipping."
 else
